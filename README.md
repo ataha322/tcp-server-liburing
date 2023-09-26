@@ -1,6 +1,6 @@
 # Asynchronous TCP server using C++ and Linux kernel IO interface io_uring via liburing
 
-* build -  `cd build && cmake .. && make`
+* build -  `mkdir build && cd build && cmake .. && make`
 
 * run - `./tcp-server 8080` or your port of choice.
 

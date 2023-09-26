@@ -1,4 +1,4 @@
-# Asynchronous TCP server using C++ and Linux kernel IO interface io_uring via liburing #
+# Asynchronous TCP server using C++ and Linux kernel IO interface io_uring via liburing
 
     * build -  `cd build && cmake .. && make`
 
@@ -6,7 +6,7 @@
 
     * connect - `telnet 0.0.0.0 8080` or `telnet localhost 8080`
 
-## Specification ##
+## Specification
 
     * Supports numerous connections asynchronously without any threading,
     only through io_uring requests.

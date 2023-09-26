@@ -5,9 +5,9 @@ Server::Server(int port) {
     this->port = port;
 
     /* open the file to write into */
-    this->file.open(std::to_string(port) + ".txt");
+    this->file.open(std::to_string(this->port) + ".txt");
 
-    if (!file.is_open()) {
+    if (!this->file.is_open()) {
         std::cerr << "failed to open the file!\n";
         exit(1);
     }
@@ -85,13 +85,20 @@ void Server::schedule_write_accepted(struct channel* chan) {
     io_uring_submit(&this->ring);
 }
 
+/* send the ACCEPTED message, called after a timeout cqe */
 void Server::submit_send(struct channel* chan) {
-
+    struct io_uring_sqe* sqe = io_uring_get_sqe(&this->ring);
+    io_uring_prep_send(sqe, chan->sock, this->message, sizeof(this->message), 0);
+    io_uring_sqe_set_data(sqe, nullptr);
+    io_uring_submit(&this->ring);
 }
 
 void Server::run() {
-    channel* chan_acc = new channel;
-    submit_accept(chan_acc);
+    channel* accept_channel = new channel;
+    submit_accept(accept_channel);
+
+    std::cout << "Server is running! Telnet via 0.0.0.0 or localhost on port "
+        << std::to_string(this->port) << std::endl;
 
     struct io_uring_cqe* cqe;
     while(1) {
@@ -100,11 +107,22 @@ void Server::run() {
             exit(1);
         }
 
-        if ((void*)cqe->user_data == nullptr) continue;
-
         channel* chan = (channel*) cqe->user_data;
+        if (chan == nullptr) {
+            /* nullptr is returned when ACCEPTED is sent, */
+            /* just free the memory */
+            delete chan;
+            io_uring_cqe_seen(&this->ring, cqe);
+            continue;
+        }
+
         switch(chan->type) {
             case channel_type::accept: {
+                /* new connection is getting established */
+                /* need to get back the accept channel for next connections */
+                /*     and create a separate read channel for the new one */
+                this->num_connections++;
+                std::cout << "New connection opened.\n";
                 channel* read_chan = new channel;
                 read_chan->client_addr = chan->client_addr;
                 read_chan->sock = cqe->res;
@@ -113,10 +131,22 @@ void Server::run() {
                 break;
             }
             case channel_type::read: {
+                /* we've read something */
                 if (cqe->res == 0) {
+                    /* empty message <-> connection closed */
+                    std::cout << "Connection closed.\n";
                     ::close(chan->sock);
+                    this->num_connections--;
                     delete chan;
+                    if (num_connections == 0) {
+                        /* no connections left, shutdown */
+                        std::cout << "Last connection is closed! Shutting down.\n";
+                        io_uring_cqe_seen(&this->ring, cqe);
+                        delete accept_channel;
+                        return;
+                    }
                 } else {
+                    /* for any message, reply with ACCEPTED in 3 seconds */
                     file << chan->buf;
                     file.flush();
                     schedule_write_accepted(chan);
@@ -125,18 +155,20 @@ void Server::run() {
                 break;
             }
 
-            case channel_type::write:
-                /* do nothing */ 
+            case channel_type::write: {
+                /* this only happens when timeout has passed */
+                submit_send(chan);
                 break;
+            }
         }
         io_uring_cqe_seen(&this->ring, cqe);
     }
     
-    delete chan_acc;
+    delete accept_channel;
 }
 
 Server::~Server() {
     file.close();
-    close(this->sock);
+    ::close(this->sock);
     io_uring_queue_exit(&ring);
 }

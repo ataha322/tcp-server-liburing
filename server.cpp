@@ -13,31 +13,31 @@ Server::Server(int port) {
     }
 
     /* initialize the ring */ 
-	int ret = io_uring_queue_init(RING_SIZE, &this->ring ,0);
-	if (ret < 0) {
-		std::cerr << "ring init failed!\n";
-		exit(1);
-	}
+    int ret = io_uring_queue_init(RING_SIZE, &this->ring ,0);
+    if (ret < 0) {
+        std::cerr << "ring init failed!\n";
+        exit(1);
+    }
 
     /* TCP-only socket */
-	this->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (this->sock == -1) {
-		std::cerr << "socket creation failed!\n";
-		exit(1);
-	}
+    this->sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (this->sock == -1) {
+        std::cerr << "socket creation failed!\n";
+        exit(1);
+    }
 
     /* addresses */
-	struct sockaddr_in server_addr;
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_addr.s_addr = INADDR_ANY;
-	server_addr.sin_port = htons(port);
+    struct sockaddr_in server_addr;
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;
+    server_addr.sin_port = htons(port);
 
-	/* bind the socket to the address */
-	if (bind(this->sock, (struct sockaddr*) &server_addr, sizeof(server_addr)) == -1) {
-		std::cerr << "binding failed!\n";
-		close(this->sock);
-		exit(1);
-	}
+    /* bind the socket to the address */
+    if (bind(this->sock, (struct sockaddr*) &server_addr, sizeof(server_addr)) == -1) {
+        std::cerr << "binding failed!\n";
+        close(this->sock);
+        exit(1);
+    }
 
     /* listen */
     if (::listen(this->sock, SOCK_QUEUE_SIZE) == -1) {
